@@ -13,9 +13,14 @@
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@adminjs/express": "^6.1.1",
+    "@adminjs/nestjs": "^6.1.0",
+    "@adminjs/prisma": "^5.0.4",
     "@auth/prisma-adapter": "^2.10.0",
     "@prisma/client": "^6.15.0",
+    "adminjs": "^7.8.17",
     "bcryptjs": "^3.0.2",
+    "express": "^5.1.0",
     "next": "15.5.2",
     "next-auth": "^4.24.11",
     "prisma": "^6.15.0",
