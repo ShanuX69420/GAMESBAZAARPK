@@ -228,6 +228,11 @@ async function handleGamesApi(request: NextRequest, url: URL, id?: string) {
       skip,
       take: limit,
       include: {
+        categories: {
+          include: {
+            category: true
+          }
+        },
         _count: {
           select: { listings: true }
         }
@@ -258,6 +263,18 @@ async function handleGamesApi(request: NextRequest, url: URL, id?: string) {
         image: body.image,
       },
     })
+    
+    // Handle category assignments
+    if (body.categoryIds && Array.isArray(body.categoryIds)) {
+      await prisma.gameCategory.createMany({
+        data: body.categoryIds.map((categoryId: string) => ({
+          gameId: newGame.id,
+          categoryId,
+        })),
+        skipDuplicates: true,
+      })
+    }
+    
     return Response.json({ data: newGame })
   }
 
@@ -273,6 +290,26 @@ async function handleGamesApi(request: NextRequest, url: URL, id?: string) {
         image: body.image,
       },
     })
+    
+    // Handle category assignments - remove existing and add new ones
+    if (body.categoryIds !== undefined) {
+      // Remove existing category assignments
+      await prisma.gameCategory.deleteMany({
+        where: { gameId: id },
+      })
+      
+      // Add new category assignments
+      if (Array.isArray(body.categoryIds) && body.categoryIds.length > 0) {
+        await prisma.gameCategory.createMany({
+          data: body.categoryIds.map((categoryId: string) => ({
+            gameId: id,
+            categoryId,
+          })),
+          skipDuplicates: true,
+        })
+      }
+    }
+    
     return Response.json({ data: updatedGame })
   }
 
@@ -792,6 +829,12 @@ async function getAdminHTML() {
                     <label>Image URL</label>
                     <input type="url" name="image" class="form-control" placeholder="https://example.com/image.jpg">
                 </div>
+                <div class="form-group">
+                    <label>Categories</label>
+                    <div id="categoriesContainer" style="max-height: 150px; overflow-y: auto; border: 1px solid #ced4da; border-radius: 4px; padding: 0.5rem;">
+                        <div class="loading">Loading categories...</div>
+                    </div>
+                </div>
                 <div class="actions">
                     <button type="submit" class="btn btn-success">Save Game</button>
                     <button type="button" class="btn btn-secondary" onclick="closeModal('gameModal')">Cancel</button>
@@ -975,14 +1018,23 @@ async function getAdminHTML() {
                 }
                 
                 let html = '<table class="data-table"><thead><tr>';
-                html += '<th>Name</th><th>Slug</th><th>Description</th><th>Listings</th><th>Created</th><th>Actions</th>';
+                html += '<th>Name</th><th>Slug</th><th>Categories</th><th>Description</th><th>Listings</th><th>Created</th><th>Actions</th>';
                 html += '</tr></thead><tbody>';
                 
                 data.data.forEach(game => {
+                    // Format categories display
+                    let categoriesDisplay = '-';
+                    if (game.categories && game.categories.length > 0) {
+                        categoriesDisplay = game.categories
+                            .map(gc => \`<span style="background: #e9ecef; padding: 0.2rem 0.4rem; border-radius: 3px; font-size: 0.8rem; margin-right: 0.25rem; display: inline-block; margin-bottom: 0.25rem;">\${gc.category.icon || '📂'} \${gc.category.name}</span>\`)
+                            .join(' ');
+                    }
+                    
                     html += \`<tr>
                         <td><strong>\${game.name}</strong></td>
                         <td><code>\${game.slug}</code></td>
-                        <td>\${game.description ? game.description.substring(0, 50) + '...' : '-'}</td>
+                        <td style="max-width: 200px;">\${categoriesDisplay}</td>
+                        <td>\${game.description ? game.description.substring(0, 30) + '...' : '-'}</td>
                         <td><span class="badge badge-secondary">\${game._count?.listings || 0}</span></td>
                         <td>\${new Date(game.createdAt).toLocaleDateString()}</td>
                         <td>
@@ -1101,6 +1153,7 @@ async function getAdminHTML() {
             document.getElementById('gameForm').reset();
             currentEditingId = null;
             currentEditingType = 'game';
+            loadCategoriesForGame();
             showModal('gameModal');
         }
 
@@ -1125,6 +1178,7 @@ async function getAdminHTML() {
                 
                 currentEditingId = id;
                 currentEditingType = 'game';
+                await loadCategoriesForGame(game.categories || []);
                 showModal('gameModal');
             } catch (error) {
                 alert('Error loading game data');
@@ -1167,12 +1221,50 @@ async function getAdminHTML() {
             }
         }
 
+        // Load Categories for Game Modal
+        async function loadCategoriesForGame(selectedCategories = []) {
+            const container = document.getElementById('categoriesContainer');
+            container.innerHTML = '<div class="loading">Loading categories...</div>';
+            
+            try {
+                const response = await fetch('/admin/api/categories');
+                const data = await response.json();
+                
+                if (data.error) {
+                    container.innerHTML = '<div class="alert alert-danger">Error loading categories</div>';
+                    return;
+                }
+                
+                let html = '';
+                data.data.forEach(category => {
+                    const isSelected = selectedCategories.some(sc => sc.categoryId === category.id || sc.category?.id === category.id);
+                    html += \`
+                        <div style="margin-bottom: 0.5rem;">
+                            <label style="display: flex; align-items: center; font-weight: normal; margin-bottom: 0;">
+                                <input type="checkbox" name="categoryIds" value="\${category.id}" \${isSelected ? 'checked' : ''} style="margin-right: 0.5rem;">
+                                <span style="font-size: 1.2rem; margin-right: 0.5rem;">\${category.icon || '📂'}</span>
+                                <span>\${category.name}</span>
+                            </label>
+                        </div>
+                    \`;
+                });
+                
+                container.innerHTML = html || '<div style="color: #6c757d; font-style: italic;">No categories available</div>';
+            } catch (error) {
+                container.innerHTML = '<div class="alert alert-danger">Error loading categories</div>';
+            }
+        }
+
         // Form Submissions
         document.getElementById('gameForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
             const formData = new FormData(this);
             const data = Object.fromEntries(formData.entries());
+            
+            // Collect selected category IDs
+            const categoryCheckboxes = document.querySelectorAll('#categoriesContainer input[name="categoryIds"]:checked');
+            data.categoryIds = Array.from(categoryCheckboxes).map(checkbox => checkbox.value);
             
             try {
                 let response;
