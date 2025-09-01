@@ -5,7 +5,11 @@ export async function GET() {
   try {
     const games = await prisma.game.findMany({
       include: {
-        category: true,
+        categories: {
+          include: {
+            category: true
+          }
+        },
         _count: {
           select: { listings: true }
         }

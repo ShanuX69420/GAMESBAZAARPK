@@ -87,7 +87,7 @@ model Category {
   description String?
   icon        String?
   
-  games       Game[]
+  games       GameCategory[]
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -99,13 +99,27 @@ model Game {
   slug        String   @unique
   description String?
   image       String?
-  categoryId  String
-  category    Category @relation(fields: [categoryId], references: [id])
   
+  categories  GameCategory[]
   listings    Listing[]
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+model GameCategory {
+  id         String   @id @default(cuid())
+  gameId     String
+  categoryId String
+  
+  game       Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  
+  createdAt  DateTime @default(now())
+  
+  @@unique([gameId, categoryId])
+  @@index([gameId])
+  @@index([categoryId])
 }
 
 model Listing {
