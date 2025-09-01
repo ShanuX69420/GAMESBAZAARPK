@@ -1,0 +1,194 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  SELLER
+  ADMIN
+}
+
+enum ListingType {
+  ACCOUNT
+  GAME_KEY
+  TOP_UP
+  COINS
+  BOOSTING
+  COACHING
+}
+
+enum ListingStatus {
+  ACTIVE
+  SOLD
+  PAUSED
+  DELETED
+}
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  CANCELLED
+  DISPUTED
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  username      String    @unique
+  password      String?
+  image         String?
+  role          UserRole  @default(USER)
+  emailVerified DateTime?
+  phoneNumber   String?
+  city          String?
+  
+  sellerProfile SellerProfile?
+  listings      Listing[]
+  orders        Order[]
+  reviews       Review[]
+  givenReviews  Review[] @relation("ReviewAuthor")
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model SellerProfile {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  displayName String
+  bio         String?
+  rating      Float    @default(0)
+  totalSales  Int      @default(0)
+  verified    Boolean  @default(false)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  slug        String   @unique
+  description String?
+  icon        String?
+  
+  games       Game[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Game {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  image       String?
+  categoryId  String
+  category    Category @relation(fields: [categoryId], references: [id])
+  
+  listings    Listing[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Listing {
+  id          String        @id @default(cuid())
+  title       String
+  description String
+  price       Float
+  type        ListingType
+  status      ListingStatus @default(ACTIVE)
+  
+  gameId      String
+  game        Game          @relation(fields: [gameId], references: [id])
+  
+  sellerId    String
+  seller      User          @relation(fields: [sellerId], references: [id])
+  
+  images      String[]
+  
+  // Type-specific fields
+  accountLevel    Int?
+  accountDetails  String?
+  keyDetails      String?
+  coinAmount      Int?
+  boostingFrom    String?
+  boostingTo      String?
+  coachingHours   Int?
+  
+  orders      Order[]
+  
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  
+  @@index([gameId])
+  @@index([sellerId])
+  @@index([type])
+  @@index([status])
+}
+
+model Order {
+  id          String      @id @default(cuid())
+  orderNumber String      @unique @default(cuid())
+  
+  listingId   String
+  listing     Listing     @relation(fields: [listingId], references: [id])
+  
+  buyerId     String
+  buyer       User        @relation(fields: [buyerId], references: [id])
+  
+  price       Float
+  status      OrderStatus @default(PENDING)
+  
+  paymentMethod String?
+  paymentId     String?
+  
+  deliveryInfo  String?
+  notes         String?
+  
+  review        Review?
+  
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  completedAt DateTime?
+  
+  @@index([buyerId])
+  @@index([status])
+}
+
+model Review {
+  id       String @id @default(cuid())
+  rating   Int
+  comment  String?
+  
+  orderId  String @unique
+  order    Order  @relation(fields: [orderId], references: [id])
+  
+  sellerId String
+  seller   User   @relation(fields: [sellerId], references: [id])
+  
+  authorId String
+  author   User   @relation("ReviewAuthor", fields: [authorId], references: [id])
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([sellerId])
+}
