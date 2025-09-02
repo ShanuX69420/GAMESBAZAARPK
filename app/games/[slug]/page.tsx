@@ -43,7 +43,8 @@ async function getAllCategories() {
 }
 
 export default async function GamePage({ params }: GamePageProps) {
-  const game = await getGameWithListings(params.slug)
+  const { slug } = await params
+  const game = await getGameWithListings(slug)
   const allCategories = await getAllCategories()
   
   if (!game) {
@@ -153,7 +154,7 @@ export default async function GamePage({ params }: GamePageProps) {
               <h3 className="text-xl font-semibold text-gray-900 mb-2">No listings yet</h3>
               <p className="text-gray-600 mb-6">Be the first to create a listing for {game.name}</p>
               <Link
-                href="/sell"
+                href={`/sell?gameId=${game.id}`}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium"
               >
                 Create Listing

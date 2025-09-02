@@ -37,6 +37,7 @@ async function getGameCategoryListings(gameSlug: string, categorySlug: string) {
   const listings = await prisma.listing.findMany({
     where: {
       gameId: game.id,
+      type: getCategoryType(categorySlug),
       status: 'ACTIVE'
     },
     include: {
@@ -58,8 +59,21 @@ async function getAllCategories() {
   })
 }
 
+function getCategoryType(categorySlug: string): string {
+  const mapping: { [key: string]: string } = {
+    'accounts': 'ACCOUNT',
+    'keys': 'GAME_KEY',
+    'top-ups': 'TOP_UP',
+    'boosting': 'BOOSTING',
+    'coaching': 'COACHING',
+    'items': 'COINS'
+  }
+  return mapping[categorySlug] || 'ACCOUNT'
+}
+
 export default async function GameCategoryPage({ params }: GameCategoryPageProps) {
-  const data = await getGameCategoryListings(params.slug, params.category)
+  const { slug, category: categorySlug } = await params
+  const data = await getGameCategoryListings(slug, categorySlug)
   const allCategories = await getAllCategories()
   
   if (!data) {
@@ -108,7 +122,16 @@ export default async function GameCategoryPage({ params }: GameCategoryPageProps
 
           {/* Category Navigation - Only show categories for this game */}
           <div className="bg-white border border-gray-200 rounded-lg p-6 mb-8">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Other Categories</h2>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">Other Categories</h2>
+              <Link
+                href={`/sell/${game.slug}/${category.slug}`}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2"
+              >
+                <span>📱</span>
+                Sell {category.name}
+              </Link>
+            </div>
             <div className="flex flex-wrap gap-3">
               {game.categories.map((gameCategory) => (
                 <Link
@@ -198,7 +221,7 @@ export default async function GameCategoryPage({ params }: GameCategoryPageProps
                 Be the first to create a {category.name.toLowerCase()} listing for {game.name}
               </p>
               <Link
-                href="/sell"
+                href={`/sell?gameId=${game.id}&category=${getCategoryType(category.slug)}`}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium"
               >
                 Create Listing

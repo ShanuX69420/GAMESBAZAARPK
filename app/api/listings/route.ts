@@ -23,7 +23,11 @@ export async function GET(request: Request) {
       include: {
         game: {
           include: {
-            category: true
+            categories: {
+              include: {
+                category: true
+              }
+            }
           }
         },
         seller: {
